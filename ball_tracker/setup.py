@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os 
+from glob import glob
 
 package_name = 'ball_tracker'
 
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join("share", package_name), glob("launch/*.launch.py")),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -26,6 +29,7 @@ setup(
         'console_scripts': [
             'object_detection_node = ball_tracker.object_detection:main',
             'camera_node =  ball_tracker.camera_publisher:main',
+            'tracking_controller_node = ball_tracker.tracking_controller:main',
         ],
     },
 )
