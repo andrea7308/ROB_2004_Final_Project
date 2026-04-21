@@ -30,6 +30,7 @@ setup(
             'object_detection_node = ball_tracker.object_detection:main',
             'camera_node =  ball_tracker.camera_publisher:main',
             'tracking_controller_node = ball_tracker.tracking_controller:main',
+            'lab_3 = ball_tracker.lab_3:main',
         ],
     },
 )

@@ -2,13 +2,13 @@ from launch import LaunchDescription
 from launch.actions import RegisterEventHandler
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import Command, FindExecutable, PathJoinSubstitution, ThisLaunchFileDir
-
+from launch_ros.parameter_descriptions import ParameterFile
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    # URDF from xacro
+    # Get URDF via xacro
     robot_description_content = Command(
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
@@ -24,31 +24,42 @@ def generate_launch_description():
     )
     robot_description = {"robot_description": robot_description_content}
 
-
-    # ros2_control controller yaml
-    robot_controllers = PathJoinSubstitution(
-        [
-            FindPackageShare('bringup'),
-            'config',
-            "lab_3.yaml",
-        ]
-    )
-
-    # -------------------------
-    # Existing robot bringup
-    # -------------------------
-    control_node = Node(
-        package="controller_manager",
-        executable="ros2_control_node",
-        parameters=[robot_description, robot_controllers],
-        output="both",
-    )
-
-    robot_state_pub_node = Node(
+    robot_state_publisher = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
         output="both",
         parameters=[robot_description],
+    )
+
+    # Use neural_controller package config (same as lab_6)
+    robot_controllers = ParameterFile(
+        PathJoinSubstitution(
+            [
+                FindPackageShare("neural_controller"),
+                "launch",
+                "config.yaml",
+            ]
+        ),
+        allow_substs=True,
+    )
+
+    control_node = Node(
+        package="controller_manager",
+        executable="ros2_control_node",
+        parameters=[robot_controllers],
+        output="both",
+    )
+
+    robot_controller_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[
+            "neural_controller",
+            "--controller-manager",
+            "/controller_manager",
+            "--controller-manager-timeout",
+            "30",
+        ],
     )
 
     joint_state_broadcaster_spawner = Node(
@@ -56,8 +67,10 @@ def generate_launch_description():
         executable="spawner",
         arguments=[
             "joint_state_broadcaster",
-            "--controller-manager", "/controller_manager",
-            "--controller-manager-timeout", "30"
+            "--controller-manager",
+            "/controller_manager",
+            "--controller-manager-timeout",
+            "30",
         ],
     )
 
@@ -66,31 +79,20 @@ def generate_launch_description():
         executable="spawner",
         arguments=[
             "imu_sensor_broadcaster",
-            "--controller-manager", "/controller_manager",
-            "--controller-manager-timeout", "30"
+            "--controller-manager",
+            "/controller_manager",
+            "--controller-manager-timeout",
+            "30",
         ],
     )
 
-    robot_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=[
-            "forward_command_controller",
-            "--controller-manager", "/controller_manager",
-            "--controller-manager-timeout", "30"
-        ],
+    camera_node = Node(
+        package="camera_ros",
+        executable="camera_node",
+        output="both",
+        parameters=[{"format": "RGB888", "width": 1400, "height": 1050}],
     )
 
-    delay_robot_controller_spawner_after_joint_state_broadcaster_spawner = RegisterEventHandler(
-        event_handler=OnProcessExit(
-            target_action=joint_state_broadcaster_spawner,
-            on_exit=[robot_controller_spawner],
-        )
-    )
-
-    # -------------------------
-    # Your custom nodes
-    # -------------------------
 
     tracking_controller_node = Node(
         package="ball_tracker",
@@ -107,14 +109,7 @@ def generate_launch_description():
         output='screen',
         )
     
-    camera_node = Node(
-        package='camera_ros',
-        executable='camera_node',
-        name='camera_node',
-        output='screen'
-    )
-
-    # Optional: delay custom nodes until forward_command_controller is spawned
+     # Optional: delay custom nodes until forward_command_controller is spawned
     delay_custom_nodes_after_robot_controller = RegisterEventHandler(
         event_handler=OnProcessExit(
             target_action=robot_controller_spawner,
@@ -123,13 +118,13 @@ def generate_launch_description():
     )
 
     nodes = [
-        control_node,
-        robot_state_pub_node,
-        joint_state_broadcaster_spawner,
+        robot_state_publisher,
         imu_sensor_broadcaster_spawner,
-        delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
-        delay_custom_nodes_after_robot_controller,
+        control_node,
+        robot_controller_spawner,
+        joint_state_broadcaster_spawner,
         camera_node,
+        delay_custom_nodes_after_robot_controller
     ]
 
     return LaunchDescription(nodes)

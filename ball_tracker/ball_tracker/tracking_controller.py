@@ -1,7 +1,8 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String, Float64MultiArray
+from std_msgs.msg import String
 from enum import Enum, auto
+from geometry_msgs.msg import Twist
 
 class State(Enum):
     RIGHT = auto()
@@ -16,13 +17,18 @@ class TrackingControllerNode(Node):
         super().__init__('tracking_controller_node')
 
         self.coord = self.create_subscription(String, '/object_coordinates', self._coord_cb ,10)
-        self.cmd = self.create_publisher(Float64MultiArray, '/forward_command_controller/commands', 10)
+        self.cmd = self.create_publisher(Twist, '/cmd_vel', 10)
 
-        self.timer = self.create_timer(0.1, self.update)
+        self.timer = self.create_timer(0.5, self.update)
         
         self.center = [375, 315]
         self.dead_zone = 30
+        
         self.state = State.IDLE
+
+        self.turn_speed = 0.5
+        self.fwd_speed = 1.0
+
 
     def _coord_cb(self, msg: String):
         text = msg.data
@@ -30,8 +36,8 @@ class TrackingControllerNode(Node):
         x = int(parts[0].strip())
         y = int(parts[1].strip())
 
-        dx = x - self.image_center[0]
-        dy = y - self.image_center[1]
+        dx = x - self.center[0]
+        dy = y - self.center[1]
 
         if abs(dx) > self.dead_zone:
             self.state = State.RIGHT if dx > 0 else State.LEFT
@@ -43,38 +49,19 @@ class TrackingControllerNode(Node):
         # can maybe implement forward movement based on size of bounding box
 
     def update(self):
-        cmd = Float64MultiArray()
+        twist = Twist()
 
         if self.state == State.RIGHT:
-            # turn right — adjust hip joints
-            cmd.data = self._turn_command(direction=1)
+            twist.angular.z = -self.turn_speed  # rotate right
         elif self.state == State.LEFT:
-            cmd.data = self._turn_command(direction=-1)
+            twist.angular.z = self.turn_speed   # rotate left
         elif self.state == State.FORWARD:
-            cmd.data = self._forward_command()
-        else:
-            cmd.data = self._idle_command()
+            twist.linear.x = self.fwd_speed
+        elif self.state == State.IDLE:
+            pass  # all zeros = stop
 
-        self.cmd.publish(cmd)
+        self.cmd.publish(twist)
         self.state = State.IDLE  # reset until next coord message
-
-    def _idle_command(self):
-        # neutral standing position — 12 joints all zero
-        return [0.0] * 12
-
-    def _turn_command(self, direction):
-        # joints order: [rf1,rf2,rf3, lf1,lf2,lf3, rb1,rb2,rb3, lb1,lb2,lb3]
-        turn = 0.2 * direction
-        return [turn, 0.0, 0.0,   # rf
-               -turn, 0.0, 0.0,   # lf
-                turn, 0.0, 0.0,   # rb
-               -turn, 0.0, 0.0]   # lb
-
-    def _forward_command(self):
-        return [0.0, 0.1, -0.1,   # rf
-                0.0, 0.1, -0.1,   # lf
-                0.0, 0.1, -0.1,   # rb
-                0.0, 0.1, -0.1]   # lb
 
 def main(args=None):
     rclpy.init(args=args)

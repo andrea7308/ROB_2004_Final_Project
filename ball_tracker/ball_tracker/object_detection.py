@@ -72,12 +72,12 @@ class ObjectDetectionNode(Node):
         text = "x: " + str(x2) + ", y: " + str(y2)
         cv2.putText(cv_img, text, (x2 - 10, y2 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
         self.coord.publish(String(data=text))
-        self.get_logger().info(f"Published coordinates {text}")
+        # self.get_logger().info(f"Published coordinates {text}")
 
         self._publish_img(cv_img)
 
     def _publish_img(self, img):
-        self.get_logger().info("In _publish_img function")
+        # self.get_logger().info("In _publish_img function")
         imgmsg = self.bridge.cv2_to_imgmsg(img, encoding='bgr8')
         self.det.publish(imgmsg)
         
