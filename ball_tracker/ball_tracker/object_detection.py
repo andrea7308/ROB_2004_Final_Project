@@ -63,14 +63,19 @@ class ObjectDetectionNode(Node):
         max_index = np.argmax(areas)
         cnt = contours[max_index]
         x, y, w, h = cv2.boundingRect(cnt)
+
+        box_area = w*h
+        # for tuning
+        self.get_logger().info(f"Box area: {box_area}")
+        
         cv2.rectangle(cv_img, (x, y), (x+w, y+h), (255, 0, 255), 3)  # magenta box
 
         x2 = x + int(w/2)
         y2 = y + int(h/2)
         cv2.circle(cv_img, (x2, y2), 4, (255, 0, 255), -1)
 
-        text = "x: " + str(x2) + ", y: " + str(y2)
         cv2.putText(cv_img, text, (x2 - 10, y2 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
+        text = f"x: {x2}, y: {y2}, area: {box_area}"
         self.coord.publish(String(data=text))
         # self.get_logger().info(f"Published coordinates {text}")
 
